@@ -1,0 +1,18 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Tema Utama Aplikasi CuanPOS -->
+    <style name="Theme.CuanPOS" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Mendaftarkan warna biru #0039ff sebagai warna utama aplikasi -->
+        <item name="colorPrimary">@color/cuanpos_blue</item>
+
+        <!-- Mendaftarkan font Open Sauce secara global ke seluruh aplikasi -->
+        <item name="fontFamily">@font/open_sauce_medium</item>
+        <item name="android:fontFamily">@font/open_sauce_medium</item>
+    </style>
+
+    <!-- Style tambahan untuk Font TabLayout (Tetap dipertahankan) -->
+    <style name="TabFontKonsep" parent="TextAppearance.Design.Tab">
+        <item name="android:fontFamily">@font/open_sauce_medium</item>
+        <item name="fontFamily">@font/open_sauce_medium</item>
+        <item name="android:textAllCaps">false</item>
+    </style>
+</resources>

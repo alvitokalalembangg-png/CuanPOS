@@ -1,0 +1,11 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Tema Utama Aplikasi CuanPOS untuk Mode Gelap -->
+    <style name="Theme.CuanPOS" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Menggunakan warna utama biru kustom -->
+        <item name="colorPrimary">@color/cuanpos_blue</item>
+
+        <!-- Menggunakan font kustom global -->
+        <item name="fontFamily">@font/open_sauce_medium</item>
+        <item name="android:fontFamily">@font/open_sauce_medium</item>
+    </style>
+</resources>
