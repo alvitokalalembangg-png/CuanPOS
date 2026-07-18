@@ -19,6 +19,8 @@ import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import android.widget.ImageView
+import android.content.Intent
 
 class KasirActivity : AppCompatActivity() {
 
@@ -73,6 +75,19 @@ class KasirActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_kasir)
+        // 1. Hubungkan ImageView tombol logout dari XML ke Kotlin
+        val btnLogout = findViewById<ImageView>(R.id.btnLogout)
+
+// 2. Beri aksi ketika tombol diklik
+        btnLogout.setOnClickListener {
+            tunjukkanDialogLogout()
+        }
+        // Menangani tombol back fisik HP dengan cara modern (AndroidX)
+        onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                tunjukkanDialogLogout()
+            }
+        })
 
         // ================= INISIALISASI KOMPONEN XML =================
         val tvKatMinuman = findViewById<TextView>(R.id.tvKatMinuman)
@@ -626,5 +641,36 @@ $barisKembali
             .setPositiveButton("Selesai") { _, _ -> bersihkanSemuaKeranjang() }
             .setCancelable(false)
             .show()
+    }
+    private fun tunjukkanDialogLogout() {
+        // 1. Inflate layout custom dialog_logout yang baru dibuat
+        val dialogView = layoutInflater.inflate(R.layout.dialog_logout, null)
+
+        val builder = androidx.appcompat.app.AlertDialog.Builder(this)
+        builder.setView(dialogView)
+
+        val dialog = builder.create()
+
+        // Agar background luar MaterialCardView transparan dan rounded corner-nya terlihat rapi
+        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+
+        // 2. Hubungkan komponen MaterialButton dari layout custom
+        val btnBatal = dialogView.findViewById<MaterialButton>(R.id.btnBatalLogout)
+        val btnYa = dialogView.findViewById<MaterialButton>(R.id.btnYaLogout)
+
+        // 3. Logika Aksi Tombol BATAL (Menutup dialog saja)
+        btnBatal.setOnClickListener {
+            dialog.dismiss()
+        }
+
+        // 4. Logika Aksi Tombol KELUAR (Pindah ke halaman utama/Login)
+        btnYa.setOnClickListener {
+            val intent = Intent(this, MainActivity::class.java)
+            startActivity(intent)
+            finish()
+            dialog.dismiss()
+        }
+
+        dialog.show()
     }
 }
