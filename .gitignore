@@ -1,1 +1,24 @@
- 
+ # Dependency folders
+node_modules/
+venv/
+.venv/
+env/
+
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# Environmental variables / Secrets
+.env
+.env.local
+secrets.txt
+
+# IDE settings configurations
+.vscode/
+.idea/
+*.suo
+
+# Build and log outputs
+dist/
+build/
+*.log
