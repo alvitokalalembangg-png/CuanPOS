@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="8dp"
+    app:cardBackgroundColor="#FDF8FD"
+    app:cardCornerRadius="24dp"
+    app:cardElevation="0dp"
+    app:strokeColor="#0039ff"
+    app:strokeWidth="1.2dp">
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingHorizontal="18dp"
+        android:paddingVertical="12dp">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentStart="true"
+            android:layout_centerVertical="true"
+            android:layout_toStartOf="@id/layoutAksi"
+            android:orientation="vertical">
+
+            <!-- BARIS: Nama Produk + Label Kategori Kapsul Bulat -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/tvNamaProdukSample"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/open_sauce_regular"
+                    android:text="Nama Produk"
+                    android:textColor="#000000"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+
+                <!-- Badge Kategori Berbentuk Kapsul Bulat Menarik -->
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    app:cardCornerRadius="12dp"
+                    app:cardElevation="0dp"
+                    app:strokeWidth="0dp"
+                    app:cardBackgroundColor="#E8E3E8">
+
+                    <TextView
+                        android:id="@+id/tvKategoriProdukSample"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:paddingHorizontal="10dp"
+                        android:paddingVertical="3dp"
+                        android:text="Makanan"
+                        android:textColor="#0039ff"
+                        android:textSize="10sp"
+                        android:textStyle="bold"
+                        android:fontFamily="@font/open_sauce_regular" />
+                </com.google.android.material.card.MaterialCardView>
+            </LinearLayout>
+
+            <!-- Harga Produk -->
+            <TextView
+                android:id="@+id/tvHargaProdukSample"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:fontFamily="@font/open_sauce_regular"
+                android:text="Rp 0"
+                android:textColor="#7A7A7A"
+                android:textSize="13sp" />
+        </LinearLayout>
+
+        <!-- Grup Tombol Aksi (Kanan) -->
+        <LinearLayout
+            android:id="@+id/layoutAksi"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <!-- Tombol Edit -->
+            <ImageView
+                android:id="@+id/btnEditProdukSample"
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:layout_marginEnd="14dp"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:contentDescription="Edit Produk"
+                android:focusable="true"
+                android:src="@android:drawable/ic_menu_edit"
+                app:tint="#0039ff" />
+
+            <!-- Tombol Hapus -->
+            <ImageView
+                android:id="@+id/btnDeleteProdukSample"
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:contentDescription="Hapus Produk"
+                android:focusable="true"
+                android:src="@android:drawable/ic_menu_delete"
+                app:tint="#0039ff" />
+        </LinearLayout>
+    </RelativeLayout>
+</com.google.android.material.card.MaterialCardView>

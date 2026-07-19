@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#FDF8FD"
+    android:paddingHorizontal="24dp"
+    tools:context=".KelolaProdukActivity">
+
+    <!-- HEADER FIXED: Dijamin Sejajar Lurus Sempurna -->
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:layout_marginTop="4dp"
+        android:layout_marginBottom="16dp">
+
+        <ImageView
+            android:id="@+id/btnBack"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:layout_alignParentStart="true"
+            android:layout_centerVertical="true"
+            android:src="@drawable/ic_back"
+            android:layout_marginStart="19dp"
+            android:contentDescription="Kembali"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            app:tint="#000000" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerInParent="true"
+            android:text="Kelola Produk"
+            android:fontFamily="@font/open_sauce_regular"
+            android:textColor="#000000"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+    </RelativeLayout>
+
+    <!-- KARTU 1: Form Tambah/Edit Produk -->
+    <com.google.android.material.card.MaterialCardView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        app:cardCornerRadius="24dp"
+        app:strokeWidth="0dp"
+        app:cardBackgroundColor="#F4EFF4"
+        app:cardElevation="0dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <TextView
+                android:id="@+id/tvFormTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                android:fontFamily="@font/open_sauce_regular"
+                android:text="Tambah Produk Baru"
+                android:textColor="#000000"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <!-- Input Nama Produk -->
+            <EditText
+                android:id="@+id/etNamaProduk"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:background="@drawable/bg_input_kapsul"
+                android:hint="Nama Produk..."
+                android:paddingHorizontal="16dp"
+                android:textSize="14sp"
+                android:fontFamily="@font/open_sauce_regular"
+                android:textColor="#000000"
+                android:textColorHint="#A0A0A0"
+                android:layout_marginBottom="10dp"
+                android:importantForAutofill="no"
+                android:inputType="text" />
+
+            <!-- Input Harga Produk -->
+            <EditText
+                android:id="@+id/etHargaProduk"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:background="@drawable/bg_input_kapsul"
+                android:hint="Harga Produk (Rp)..."
+                android:paddingHorizontal="16dp"
+                android:textSize="14sp"
+                android:fontFamily="@font/open_sauce_regular"
+                android:textColor="#000000"
+                android:textColorHint="#A0A0A0"
+                android:layout_marginBottom="12dp"
+                android:importantForAutofill="no"
+                android:inputType="number" />
+
+            <!-- Label Petunjuk Kategori -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="6dp"
+                android:fontFamily="@font/open_sauce_regular"
+                android:text="Pilih Kategori:"
+                android:textColor="#555555"
+                android:textSize="12sp" />
+
+            <!-- Pilihan Kategori dengan Chip -->
+            <com.google.android.material.chip.ChipGroup
+                android:id="@+id/cgKategori"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="14dp"
+                app:singleSelection="true"
+                app:checkedChip="@+id/chipMakanan">
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipMakanan"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Makanan"
+                    android:fontFamily="@font/open_sauce_regular"
+                    android:textSize="13sp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:checkable="true"
+                    android:textColor="@color/text_chip_selector"
+                    app:chipBackgroundColor="@color/bg_chip_selector"
+                    app:chipCornerRadius="20dp"
+                    app:chipStrokeWidth="0dp" />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipMinuman"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Minuman"
+                    android:fontFamily="@font/open_sauce_regular"
+                    android:textSize="13sp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:checkable="true"
+                    android:textColor="@color/text_chip_selector"
+                    app:chipBackgroundColor="@color/bg_chip_selector"
+                    app:chipCornerRadius="20dp"
+                    app:chipStrokeWidth="0dp" />
+            </com.google.android.material.chip.ChipGroup>
+
+            <!-- Tombol Aksi Utama -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnTambahProduk"
+                android:layout_width="match_parent"
+                android:layout_height="46dp"
+                android:text="TAMBAH PRODUK"
+                android:textStyle="bold"
+                android:textSize="14sp"
+                android:backgroundTint="#0039ff"
+                android:textColor="#FFFFFF"
+                app:cornerRadius="24dp"/>
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- KARTU 2: Daftar Urutan Produk -->
+    <com.google.android.material.card.MaterialCardView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        app:cardCornerRadius="24dp"
+        app:strokeWidth="0dp"
+        app:cardBackgroundColor="#F4EFF4"
+        app:cardElevation="0dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                android:fontFamily="@font/open_sauce_regular"
+                android:text="Daftar Produk"
+                android:textColor="#000000"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvProduk"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scrollbars="none"
+                tools:listitem="@layout/item_produk" />
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+</LinearLayout>

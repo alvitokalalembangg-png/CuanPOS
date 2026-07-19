@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#FDF8FD"
+    android:padding="16dp"
+    tools:context=".LaporanPenjualanActivity">
+
+    <!-- HEADER: Tombol Kembali + Judul Menu -->
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:layout_marginTop="4dp"
+        android:layout_marginBottom="8dp">
+
+        <ImageView
+            android:id="@+id/btnBackKeAdmin"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:layout_alignParentStart="true"
+            android:layout_centerVertical="true"
+            android:layout_marginStart="8dp"
+            android:src="@drawable/ic_back"
+            android:contentDescription="Kembali"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            app:tint="#000000" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerInParent="true"
+            android:text="Laporan Penjualan"
+            android:fontFamily="@font/open_sauce_regular"
+            android:textColor="#000000"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+    </RelativeLayout>
+
+    <!-- FILTER PERIODE (ChipGroup) -->
+    <com.google.android.material.chip.ChipGroup
+        android:id="@+id/chipGroupPeriode"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        app:singleSelection="true"
+        app:selectionRequired="true">
+
+        <com.google.android.material.chip.Chip
+            android:id="@+id/chipHarian"
+            style="@style/Widget.MaterialComponents.Chip.Choice"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Harian"
+            android:textColor="@color/text_chip_selector"
+            app:chipBackgroundColor="@color/bg_chip_selector"
+            app:chipStrokeWidth="0dp"
+            android:fontFamily="@font/open_sauce_regular"
+            android:checked="true" />
+
+        <com.google.android.material.chip.Chip
+            android:id="@+id/chipMingguan"
+            style="@style/Widget.MaterialComponents.Chip.Choice"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Mingguan"
+            android:textColor="@color/text_chip_selector"
+            app:chipBackgroundColor="@color/bg_chip_selector"
+            app:chipStrokeWidth="0dp"
+            android:fontFamily="@font/open_sauce_regular" />
+
+        <com.google.android.material.chip.Chip
+            android:id="@+id/chipBulanan"
+            style="@style/Widget.MaterialComponents.Chip.Choice"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Bulanan"
+            android:textColor="@color/text_chip_selector"
+            app:chipBackgroundColor="@color/bg_chip_selector"
+            app:chipStrokeWidth="0dp"
+            android:fontFamily="@font/open_sauce_regular" />
+    </com.google.android.material.chip.ChipGroup>
+
+    <!-- KARTU RINGKASAN RINGKASAN TOTAL PENDAPATAN -->
+    <com.google.android.material.card.MaterialCardView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="20dp"
+        app:cardCornerRadius="24dp"
+        app:strokeWidth="0dp"
+        app:cardBackgroundColor="#0039ff"
+        app:cardElevation="0dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="20dp">
+
+            <TextView
+                android:id="@+id/tvLabelTotal"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Total Pendapatan Harian"
+                android:textColor="#B3FFFFFF"
+                android:textSize="13sp"
+                android:fontFamily="@font/open_sauce_regular" />
+
+            <TextView
+                android:id="@+id/tvTotalPendapatan"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Rp 2.450.000"
+                android:textColor="#FFFFFF"
+                android:textSize="26sp"
+                android:textStyle="bold"
+                android:fontFamily="@font/open_sauce_regular" />
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- KARTU UTAMA: PRODUK TERLARIS DI PERIODE INI -->
+    <com.google.android.material.card.MaterialCardView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        app:cardCornerRadius="24dp"
+        app:strokeWidth="0dp"
+        app:cardBackgroundColor="#F4EFF4"
+        app:cardElevation="0dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                android:text="Produk Terlaris Periode Ini"
+                android:textColor="#000000"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:fontFamily="@font/open_sauce_regular" />
+
+            <!-- RecyclerView untuk memuat item_produk_terlaris -->
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvTransaksi"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scrollbars="none"
+                tools:listitem="@layout/item_produk_terlaris" />
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+</LinearLayout>
