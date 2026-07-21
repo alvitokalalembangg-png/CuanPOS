@@ -6,6 +6,8 @@ import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
+import java.text.NumberFormat
+import java.util.Locale
 
 class ProdukAdapter(
     private val listProduk: ArrayList<Produk>,
@@ -14,8 +16,7 @@ class ProdukAdapter(
 ) : RecyclerView.Adapter<ProdukAdapter.ProdukViewHolder>() {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ProdukViewHolder {
-        // Menghubungkan ke layout file item_produk.xml
-        val view = LayoutInflater.from(parent.context).inflate(R.layout.item_produk, parent, false)
+        val view = LayoutInflater.from(parent.context).inflate(R.layout.item_produk_manage, parent, false)
         return ProdukViewHolder(view)
     }
 
@@ -27,27 +28,30 @@ class ProdukAdapter(
     override fun getItemCount(): Int = listProduk.size
 
     class ProdukViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        // 1. Daftarkan semua View dari XML di sini
-        private val tvNamaProdukSample: TextView = itemView.findViewById(R.id.tvNamaProdukSample)
-        private val tvHargaProdukSample: TextView = itemView.findViewById(R.id.tvHargaProdukSample)
-        private val tvKategoriProdukSample: TextView = itemView.findViewById(R.id.tvKategoriProdukSample)
-        private val btnEditProdukSample: ImageView = itemView.findViewById(R.id.btnEditProdukSample)
-        private val btnDeleteProdukSample: ImageView = itemView.findViewById(R.id.btnDeleteProdukSample)
+        private val tvNamaProduk: TextView = itemView.findViewById(R.id.tvNamaProdukManage)
+        private val tvHargaProduk: TextView = itemView.findViewById(R.id.tvHargaProdukManage)
+        private val tvStockProduk: TextView = itemView.findViewById(R.id.tvStockProdukManage)
+        private val btnEdit: ImageView = itemView.findViewById(R.id.btnEditProdukManage)
+        private val btnDelete: ImageView = itemView.findViewById(R.id.btnDeleteProdukManage)
 
         fun bind(produk: Produk, onEditClick: (Produk) -> Unit, onDeleteClick: (Produk) -> Unit) {
-            // 2. Set data ke masing-masing View (Tanpa embel-embel itemView lagi)
-            tvNamaProdukSample.text = produk.nama
-            tvHargaProdukSample.text = "Rp ${produk.harga}"
-            tvKategoriProdukSample.text = produk.kategori
+            tvNamaProduk.text = produk.name
+            tvHargaProduk.text = formatRupiah(produk.price)
+            tvStockProduk.text = "Stok: ${produk.stock}"
 
-            // 3. Set aksi klik tombol
-            btnEditProdukSample.setOnClickListener {
+            btnEdit.setOnClickListener {
                 onEditClick(produk)
             }
 
-            btnDeleteProdukSample.setOnClickListener {
+            btnDelete.setOnClickListener {
                 onDeleteClick(produk)
             }
+        }
+
+        private fun formatRupiah(number: Int): String {
+            val localeID = Locale.forLanguageTag("id-ID")
+            val numberFormat = NumberFormat.getCurrencyInstance(localeID)
+            return numberFormat.format(number).replace("Rp", "Rp. ").replace(",00", "")
         }
     }
 }

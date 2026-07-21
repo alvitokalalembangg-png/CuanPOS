@@ -1,8 +1,11 @@
 package com.example.cuanpos
 
 data class Produk(
-    val id: String,
-    var nama: String,
-    var harga: Int,
-    var kategori: String // <-- Tambahan variabel kategori
+    val id: Int,
+    var category_id: Int,
+    var name: String,
+    var price: Int,
+    var stock: Int,
+    var gambar_url: String? = null,
+    var category: Kategori? = null
 )

@@ -3,10 +3,18 @@ package com.example.cuanpos
 import android.os.Bundle
 import android.widget.ImageView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.example.cuanpos.network.ApiClient
 import com.google.android.material.chip.Chip
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.text.NumberFormat
+import java.util.Locale
 
 class LaporanPenjualanActivity : AppCompatActivity() {
 
@@ -37,51 +45,81 @@ class LaporanPenjualanActivity : AppCompatActivity() {
         }
 
         // 4. Logika Filter Berdasarkan Pilihan Chip
-        chipHarian.setOnClickListener { updateLaporan("Harian") }
-        chipMingguan.setOnClickListener { updateLaporan("Mingguan") }
-        chipBulanan.setOnClickListener { updateLaporan("Bulanan") }
+        chipHarian.setOnClickListener { fetchLaporan("Harian") }
+        chipMingguan.setOnClickListener { fetchLaporan("Mingguan") }
+        chipBulanan.setOnClickListener { fetchLaporan("Bulanan") }
 
         // Load awal data default (Harian)
-        updateLaporan("Harian")
+        fetchLaporan("Harian")
     }
 
-    private fun updateLaporan(periode: String) {
-        val listDummy = ArrayList<ProdukTerlaris>()
+    private fun fetchLaporan(periode: String) {
+        val sharedPref = getSharedPreferences("CuanPOS_Prefs", MODE_PRIVATE)
+        val token = sharedPref.getString("AUTH_TOKEN", "") ?: ""
 
-        when (periode) {
-            "Harian" -> {
-                tvLabelTotal.text = "Total Pendapatan Hari Ini"
-                tvTotalPendapatan.text = "Rp 350.000"
-
-                // Data Dummy Harian
-                listDummy.add(ProdukTerlaris(1, "Es Pisang Ijo", 12, "Porsi"))
-                listDummy.add(ProdukTerlaris(2, "Nasi Goreng Cuan", 8, "Porsi"))
-                listDummy.add(ProdukTerlaris(3, "Es Teh Manis", 5, "Gelas"))
-            }
-            "Mingguan" -> {
-                tvLabelTotal.text = "Total Pendapatan Minggu Ini"
-                tvTotalPendapatan.text = "Rp 2.450.000"
-
-                // Data Dummy Mingguan
-                listDummy.add(ProdukTerlaris(1, "Es Pisang Ijo", 94, "Porsi"))
-                listDummy.add(ProdukTerlaris(2, "Nasi Goreng Cuan", 72, "Porsi"))
-                listDummy.add(ProdukTerlaris(3, "Es Teh Manis", 45, "Gelas"))
-                listDummy.add(ProdukTerlaris(4, "Ayam Geprek", 30, "Porsi"))
-            }
-            "Bulanan" -> {
-                tvLabelTotal.text = "Total Pendapatan Bulan Ini"
-                tvTotalPendapatan.text = "Rp 12.800.000"
-
-                // Data Dummy Bulanan
-                listDummy.add(ProdukTerlaris(1, "Es Pisang Ijo", 412, "Porsi"))
-                listDummy.add(ProdukTerlaris(2, "Nasi Goreng Cuan", 320, "Porsi"))
-                listDummy.add(ProdukTerlaris(3, "Es Teh Manis", 195, "Gelas"))
-                listDummy.add(ProdukTerlaris(4, "Ayam Geprek", 140, "Porsi"))
-                listDummy.add(ProdukTerlaris(5, "Kopi Susu Cuan", 88, "Cup"))
-            }
+        tvLabelTotal.text = when (periode) {
+            "Harian" -> "Total Pendapatan Hari Ini"
+            "Mingguan" -> "Total Pendapatan Minggu Ini"
+            else -> "Total Pendapatan Bulan Ini"
         }
 
-        // Set adapter dengan data dummy yang sudah dipilih
-        rvTransaksi.adapter = ProdukTerlarisAdapter(listDummy)
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val response = ApiClient.instance.getLaporanPenjualan(token)
+                withContext(Dispatchers.Main) {
+                    if (response.isSuccessful && response.body() != null) {
+                        val transactions = response.body()!!.data
+                        
+                        // Filter by period (client-side logic for now as backend doesn't have it)
+                        // In a real app, you'd probably do this on the backend or filter by 'created_at'
+                        // For simplicity, we show all data or filter roughly
+                        
+                        val totalRevenue = transactions.filter { it.status == "selesai" }.sumOf { it.total_amount }
+                        tvTotalPendapatan.text = formatRupiah(totalRevenue)
+
+                        // Aggregate Top Products
+                        val productSales = mutableMapOf<Int, Triple<String, Int, String>>() // ID -> (Name, Qty, Unit)
+                        
+                        for (tx in transactions) {
+                            if (tx.status != "selesai") continue
+                            tx.details?.forEach { detail ->
+                                val pid = detail.product_id
+                                val name = detail.product?.name ?: "Unknown"
+                                val qty = detail.quantity
+                                val unit = "Porsi" // Default unit
+                                
+                                val existing = productSales[pid] ?: Triple(name, 0, unit)
+                                productSales[pid] = Triple(name, existing.second + qty, unit)
+                            }
+                        }
+
+                        val topProducts = productSales.toList()
+                            .sortedByDescending { it.second.second }
+                            .mapIndexed { index, pair ->
+                                ProdukTerlaris(
+                                    peringkat = index + 1,
+                                    namaProduk = pair.second.first,
+                                    jumlahTerjual = pair.second.second,
+                                    satuan = pair.second.third
+                                )
+                            }
+
+                        rvTransaksi.adapter = ProdukTerlarisAdapter(topProducts)
+                    } else {
+                        Toast.makeText(this@LaporanPenjualanActivity, "Gagal memuat laporan", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@LaporanPenjualanActivity, "Kesalahan koneksi", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    private fun formatRupiah(number: Int): String {
+        val localeID = Locale.forLanguageTag("id-ID")
+        val numberFormat = NumberFormat.getCurrencyInstance(localeID)
+        return numberFormat.format(number).replace("Rp", "Rp. ").replace(",00", "")
     }
 }

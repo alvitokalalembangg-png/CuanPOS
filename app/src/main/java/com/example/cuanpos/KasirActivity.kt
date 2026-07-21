@@ -1,484 +1,556 @@
 package com.example.cuanpos
 
+import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
+import android.view.Gravity
 import android.view.View
 import android.widget.EditText
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.RecyclerView
+import com.example.cuanpos.network.ApiClient
+import com.example.cuanpos.network.TransactionItemRequest
+import com.example.cuanpos.network.TransactionRequest
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import android.widget.ImageView
-import android.content.Intent
 
 class KasirActivity : AppCompatActivity() {
 
-    // 1. Variabel Data Kuantitas Produk
-    private var qtyKopi = 0
-    private var qtyMatcha = 0
-    private var qtyAmericano = 0
-    private var qtyEarlGrey = 0
-    private var qtyCroissant = 0
-    private var qtyFrenchFries = 0
-    private var qtyBrownies = 0
-    private var qtySingkong = 0
+    private val listProdukServer = mutableListOf<Produk>()
+    private val listKategoriServer = mutableListOf<Kategori>()
+    private val keranjangMap = mutableMapOf<Int, Int>()
 
-    // 2. Data Harga Produk
-    private val hargaKopi = 15000
-    private val hargaMatcha = 22000
-    private val hargaAmericano = 18000
-    private val hargaEarlGrey = 16000
-    private val hargaCroissant = 20000
-    private val hargaFrenchFries = 18000
-    private val hargaBrownies = 15000
-    private val hargaSingkong = 14000
-
-    // Komponen XML global agar bisa diakses seluruh fungsi
     private lateinit var tvKeranjangKosong: TextView
     private lateinit var tvTotalHarga: TextView
-    private lateinit var rowItemKopi: View
-    private lateinit var tvDetailKopi: TextView
-    private lateinit var tvSubtotalKopi: TextView
-    private lateinit var rowItemMatcha: View
-    private lateinit var tvDetailMatcha: TextView
-    private lateinit var tvSubtotalMatcha: TextView
-    private lateinit var rowItemAmericano: View
-    private lateinit var tvDetailAmericano: TextView
-    private lateinit var tvSubtotalAmericano: TextView
-    private lateinit var rowItemEarlGrey: View
-    private lateinit var tvDetailEarlGrey: TextView
-    private lateinit var tvSubtotalEarlGrey: TextView
-    private lateinit var rowItemCroissant: View
-    private lateinit var tvDetailCroissant: TextView
-    private lateinit var tvSubtotalCroissant: TextView
-    private lateinit var rowItemFrenchFries: View
-    private lateinit var tvDetailFrenchFries: TextView
-    private lateinit var tvSubtotalFrenchFries: TextView
-    private lateinit var rowItemBrownies: View
-    private lateinit var tvDetailBrownies: TextView
-    private lateinit var tvSubtotalBrownies: TextView
-    private lateinit var rowItemSingkong: View
-    private lateinit var tvDetailSingkong: TextView
-    private lateinit var tvSubtotalSingkong: TextView
+    private lateinit var containerKeranjangItems: LinearLayout
+    private lateinit var rvKatalogProduk: RecyclerView
+    private lateinit var containerKategoriKasir: LinearLayout
+
+    private lateinit var kasirProdukAdapter: KasirProdukAdapter
+    private var listProdukDisplay = mutableListOf<Produk>()
+
+    private var kategoriAktifId: Int = -1
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_kasir)
-        // 1. Hubungkan ImageView tombol logout dari XML ke Kotlin
-        val btnLogout = findViewById<ImageView>(R.id.btnLogout)
 
-// 2. Beri aksi ketika tombol diklik
-        btnLogout.setOnClickListener {
-            tunjukkanDialogLogout()
-        }
-        // Menangani tombol back fisik HP dengan cara modern (AndroidX)
+        val btnLogout = findViewById<ImageView>(R.id.btnLogout)
+        val btnHistory = findViewById<ImageView>(R.id.btnHistory)
+        val btnQueue = findViewById<ImageView>(R.id.btnQueue)
+
+        btnLogout.setOnClickListener { tunjukkanDialogLogout() }
+        btnHistory.setOnClickListener { tampilkanRiwayatTransaksi() }
+        btnQueue.setOnClickListener { tampilkanAntreanBill() }
+
         onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 tunjukkanDialogLogout()
             }
         })
 
-        // ================= INISIALISASI KOMPONEN XML =================
-        val tvKatMinuman = findViewById<TextView>(R.id.tvKatMinuman)
-        val tvKatMakanan = findViewById<TextView>(R.id.tvKatMakanan)
         tvKeranjangKosong = findViewById(R.id.tvKeranjangKosong)
         tvTotalHarga = findViewById(R.id.tvTotalHarga)
+
+        rvKatalogProduk = findViewById(R.id.rvKatalogProduk)
+        containerKeranjangItems = findViewById(R.id.containerKeranjangItems)
+        containerKategoriKasir = findViewById(R.id.containerKategoriKasir)
+
+        // Setup RecyclerView Katalog
+        kasirProdukAdapter = KasirProdukAdapter(listProdukDisplay) { produk ->
+            val currentQty = keranjangMap.getOrDefault(produk.id, 0)
+            if (produk.stock <= 0) {
+                Toast.makeText(this@KasirActivity, "Stok habis!", Toast.LENGTH_SHORT).show()
+            } else if (currentQty >= produk.stock) {
+                Toast.makeText(this@KasirActivity, "Stok tidak mencukupi!", Toast.LENGTH_SHORT).show()
+            } else {
+                keranjangMap[produk.id] = currentQty + 1
+                updateKeranjangBelanja()
+            }
+        }
+        rvKatalogProduk.layoutManager = androidx.recyclerview.widget.GridLayoutManager(this, 2)
+        rvKatalogProduk.adapter = kasirProdukAdapter
+        rvKatalogProduk.isNestedScrollingEnabled = false // Let parent ScrollView handle it
 
         val btnClearCart = findViewById<MaterialButton>(R.id.btnClearCart)
         val btnSaveOrder = findViewById<MaterialButton>(R.id.btnSaveOrder)
         val btnBayar = findViewById<MaterialButton>(R.id.btnBayar)
 
-        val btnProdukKopi = findViewById<MaterialCardView>(R.id.btnProdukKopi)
-        val btnProdukMatcha = findViewById<MaterialCardView>(R.id.btnProdukMatcha)
-        val btnProdukAmericano = findViewById<MaterialCardView>(R.id.btnProdukAmericano)
-        val btnProdukEarlGrey = findViewById<MaterialCardView>(R.id.btnProdukEarlGrey)
-
-        val btnProdukCroissant = findViewById<MaterialCardView>(R.id.btnProdukCroissant)
-        val btnProdukFrenchFries = findViewById<MaterialCardView>(R.id.btnProdukFrenchFries)
-        val btnProdukBrownies = findViewById<MaterialCardView>(R.id.btnProdukBrownies)
-        val btnProdukSingkong = findViewById<MaterialCardView>(R.id.btnProdukSingkong)
-
-        rowItemKopi = findViewById(R.id.rowItemKopi)
-        tvDetailKopi = findViewById(R.id.tvDetailKopi)
-        tvSubtotalKopi = findViewById(R.id.tvSubtotalKopi)
-        val btnKurangKopi = findViewById<MaterialButton>(R.id.btnKurangKopi)
-
-        rowItemMatcha = findViewById(R.id.rowItemMatcha)
-        tvDetailMatcha = findViewById(R.id.tvDetailMatcha)
-        tvSubtotalMatcha = findViewById(R.id.tvSubtotalMatcha)
-        val btnKurangMatcha = findViewById<MaterialButton>(R.id.btnKurangMatcha)
-
-        rowItemAmericano = findViewById(R.id.rowItemAmericano)
-        tvDetailAmericano = findViewById(R.id.tvDetailAmericano)
-        tvSubtotalAmericano = findViewById(R.id.tvSubtotalAmericano)
-        val btnKurangAmericano = findViewById<MaterialButton>(R.id.btnKurangAmericano)
-
-        rowItemEarlGrey = findViewById(R.id.rowItemEarlGrey)
-        tvDetailEarlGrey = findViewById(R.id.tvDetailEarlGrey)
-        tvSubtotalEarlGrey = findViewById(R.id.tvSubtotalEarlGrey)
-        val btnKurangEarlGrey = findViewById<MaterialButton>(R.id.btnKurangEarlGrey)
-
-        rowItemCroissant = findViewById(R.id.rowItemCroissant)
-        tvDetailCroissant = findViewById(R.id.tvDetailCroissant)
-        tvSubtotalCroissant = findViewById(R.id.tvSubtotalCroissant)
-        val btnKurangCroissant = findViewById<MaterialButton>(R.id.btnKurangCroissant)
-
-        rowItemFrenchFries = findViewById(R.id.rowItemFrenchFries)
-        tvDetailFrenchFries = findViewById(R.id.tvDetailFrenchFries)
-        tvSubtotalFrenchFries = findViewById(R.id.tvSubtotalFrenchFries)
-        val btnKurangFrenchFries = findViewById<MaterialButton>(R.id.btnKurangFrenchFries)
-
-        rowItemBrownies = findViewById(R.id.rowItemBrownies)
-        tvDetailBrownies = findViewById(R.id.tvDetailBrownies)
-        tvSubtotalBrownies = findViewById(R.id.tvSubtotalBrownies)
-        val btnKurangBrownies = findViewById<MaterialButton>(R.id.btnKurangBrownies)
-
-        rowItemSingkong = findViewById(R.id.rowItemSingkong)
-        tvDetailSingkong = findViewById(R.id.tvDetailSingkong)
-        tvSubtotalSingkong = findViewById(R.id.tvSubtotalSingkong)
-        val btnKurangSingkong = findViewById<MaterialButton>(R.id.btnKurangSingkong)
-
-        val warnaBiruCustom = Color.parseColor("#0039ff")
-        val warnaAbuMuted = Color.parseColor("#7A7A7A")
-
-        // ================= INTERAKSI KLIK TAMBAH PRODUK =================
-        btnProdukKopi.setOnClickListener { qtyKopi++; updateKeranjangBelanja() }
-        btnProdukMatcha.setOnClickListener { qtyMatcha++; updateKeranjangBelanja() }
-        btnProdukAmericano.setOnClickListener { qtyAmericano++; updateKeranjangBelanja() }
-        btnProdukEarlGrey.setOnClickListener { qtyEarlGrey++; updateKeranjangBelanja() }
-        btnProdukCroissant.setOnClickListener { qtyCroissant++; updateKeranjangBelanja() }
-        btnProdukFrenchFries.setOnClickListener { qtyFrenchFries++; updateKeranjangBelanja() }
-        btnProdukBrownies.setOnClickListener { qtyBrownies++; updateKeranjangBelanja() }
-        btnProdukSingkong.setOnClickListener { qtySingkong++; updateKeranjangBelanja() }
-
-        // ================= INTERAKSI TOMBOL MINUS (-) DI KERANJANG =================
-        btnKurangKopi.setOnClickListener { if (qtyKopi > 0) qtyKopi--; updateKeranjangBelanja() }
-        btnKurangMatcha.setOnClickListener { if (qtyMatcha > 0) qtyMatcha--; updateKeranjangBelanja() }
-        btnKurangAmericano.setOnClickListener { if (qtyAmericano > 0) qtyAmericano--; updateKeranjangBelanja() }
-        btnKurangEarlGrey.setOnClickListener { if (qtyEarlGrey > 0) qtyEarlGrey--; updateKeranjangBelanja() }
-        btnKurangCroissant.setOnClickListener { if (qtyCroissant > 0) qtyCroissant--; updateKeranjangBelanja() }
-        btnKurangFrenchFries.setOnClickListener { if (qtyFrenchFries > 0) qtyFrenchFries--; updateKeranjangBelanja() }
-        btnKurangBrownies.setOnClickListener { if (qtyBrownies > 0) qtyBrownies--; updateKeranjangBelanja() }
-        btnKurangSingkong.setOnClickListener { if (qtySingkong > 0) qtySingkong--; updateKeranjangBelanja() }
-
         btnClearCart.setOnClickListener { bersihkanSemuaKeranjang() }
+        btnSaveOrder.setOnClickListener { simpanBillKeAntrean() }
+        btnBayar.setOnClickListener { prosesPembayaran() }
 
-        // ================= FILTER MENU BERDASARKAN KATEGORI =================
-        fun tampilkanMenuBerdasarkanKategori(isMinuman: Boolean) {
-            if (isMinuman) {
-                tvKatMinuman.setTextColor(warnaBiruCustom)
-                tvKatMinuman.setTypeface(null, Typeface.BOLD)
-                tvKatMakanan.setTextColor(warnaAbuMuted)
-                tvKatMakanan.setTypeface(null, Typeface.NORMAL)
+        fetchDataDariServer()
+    }
 
-                btnProdukKopi.visibility = View.VISIBLE
-                btnProdukMatcha.visibility = View.VISIBLE
-                btnProdukAmericano.visibility = View.VISIBLE
-                btnProdukEarlGrey.visibility = View.VISIBLE
+    private fun fetchDataDariServer() {
+        val sharedPref = getSharedPreferences("CuanPOS_Prefs", MODE_PRIVATE)
+        val token = sharedPref.getString("AUTH_TOKEN", "") ?: ""
 
-                btnProdukCroissant.visibility = View.GONE
-                btnProdukFrenchFries.visibility = View.GONE
-                btnProdukBrownies.visibility = View.GONE
-                btnProdukSingkong.visibility = View.GONE
-            } else {
-                tvKatMakanan.setTextColor(warnaBiruCustom)
-                tvKatMakanan.setTypeface(null, Typeface.BOLD)
-                tvKatMinuman.setTextColor(warnaAbuMuted)
-                tvKatMinuman.setTypeface(null, Typeface.NORMAL)
-
-                btnProdukKopi.visibility = View.GONE
-                btnProdukMatcha.visibility = View.GONE
-                btnProdukAmericano.visibility = View.GONE
-                btnProdukEarlGrey.visibility = View.GONE
-
-                btnProdukCroissant.visibility = View.VISIBLE
-                btnProdukFrenchFries.visibility = View.VISIBLE
-                btnProdukBrownies.visibility = View.VISIBLE
-                btnProdukSingkong.visibility = View.VISIBLE
-            }
+        if (token.isEmpty()) {
+            Toast.makeText(this, "Sesi habis, silakan login ulang", Toast.LENGTH_SHORT).show()
+            return
         }
 
-        tampilkanMenuBerdasarkanKategori(isMinuman = true)
-        tvKatMinuman.setOnClickListener { tampilkanMenuBerdasarkanKategori(isMinuman = true) }
-        tvKatMakanan.setOnClickListener { tampilkanMenuBerdasarkanKategori(isMinuman = false) }
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val responseKategori = ApiClient.instance.getCategories(token)
+                val responseProduk = ApiClient.instance.getProducts(token)
 
-        // ================= LOGIKA TOMBOL SAVE BILL =================
-        btnSaveOrder.setOnClickListener {
-            val totalTagihan = (qtyKopi * hargaKopi) + (qtyMatcha * hargaMatcha) +
-                    (qtyAmericano * hargaAmericano) + (qtyEarlGrey * hargaEarlGrey) +
-                    (qtyCroissant * hargaCroissant) + (qtyFrenchFries * hargaFrenchFries) +
-                    (qtyBrownies * hargaBrownies) + (qtySingkong * hargaSingkong)
-
-            if (totalTagihan == 0) {
-                tampilkanRiwayatTransaksi()
-                return@setOnClickListener
-            }
-
-            val ringkasanPesanan = StringBuilder()
-            if (qtyKopi > 0) ringkasanPesanan.append("Es Kopi Susu x$qtyKopi\n")
-            if (qtyMatcha > 0) ringkasanPesanan.append("Matcha Latte x$qtyMatcha\n")
-            if (qtyAmericano > 0) ringkasanPesanan.append("Iced Americano x$qtyAmericano\n")
-            if (qtyEarlGrey > 0) ringkasanPesanan.append("Earl Grey Tea x$qtyEarlGrey\n")
-            if (qtyCroissant > 0) ringkasanPesanan.append("Croissant x$qtyCroissant\n")
-            if (qtyFrenchFries > 0) ringkasanPesanan.append("French Fries x$qtyFrenchFries\n")
-            if (qtyBrownies > 0) ringkasanPesanan.append("Choco Brownies x$qtyBrownies\n")
-            if (qtySingkong > 0) ringkasanPesanan.append("Singkong Goreng x$qtySingkong\n")
-
-            val sharedPref = getSharedPreferences("CuanPOS_Prefs", MODE_PRIVATE)
-            val idBill = "BILL_" + System.currentTimeMillis()
-            val dataSimpan = "${ringkasanPesanan.toString().trim()} | Total: ${formatRupiah(totalTagihan)}"
-
-            sharedPref.edit().putString(idBill, dataSimpan).apply()
-
-            Toast.makeText(this, "Bill Berhasil Disimpan di Antrean!", Toast.LENGTH_LONG).show()
-            bersihkanSemuaKeranjang()
-        }
-
-        // ================= LOGIKA TOMBOL BAYAR =================
-        btnBayar.setOnClickListener {
-            val totalTagihan = (qtyKopi * hargaKopi) + (qtyMatcha * hargaMatcha) +
-                    (qtyAmericano * hargaAmericano) + (qtyEarlGrey * hargaEarlGrey) +
-                    (qtyCroissant * hargaCroissant) + (qtyFrenchFries * hargaFrenchFries) +
-                    (qtyBrownies * hargaBrownies) + (qtySingkong * hargaSingkong)
-
-            if (totalTagihan == 0) {
-                Toast.makeText(this, "Keranjang masih kosong!", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-
-            val dialogView = layoutInflater.inflate(R.layout.dialog_pembayaran, null)
-            val tvDialogTotal = dialogView.findViewById<TextView>(R.id.tvDialogTotal)
-            val etUangDiterima = dialogView.findViewById<EditText>(R.id.etUangDiterima)
-            val tvDialogKembalian = dialogView.findViewById<TextView>(R.id.tvDialogKembalian)
-
-            tvDialogTotal.text = formatRupiah(totalTagihan)
-
-            val builder = AlertDialog.Builder(this).setView(dialogView).setCancelable(false)
-            val alertDialog = builder.create()
-            alertDialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
-
-            etUangDiterima.addTextChangedListener(object : TextWatcher {
-                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-                override fun afterTextChanged(s: Editable?) {
-                    val inputStr = s.toString().trim()
-                    if (inputStr.isNotEmpty()) {
-                        try {
-                            val uangDiterima = inputStr.toLong() // Perbaikan 1: Pindah ke Long agar anti-crash nominal besar
-                            val kembalian = uangDiterima - totalTagihan
-                            if (kembalian >= 0) {
-                                tvDialogKembalian.text = formatRupiah(kembalian.toInt())
-                                tvDialogKembalian.setTextColor(Color.parseColor("#4CAF50"))
-                            } else {
-                                tvDialogKembalian.text = "Uang Kurang!"
-                                tvDialogKembalian.setTextColor(Color.RED)
-                            }
-                        } catch (e: NumberFormatException) {
-                            tvDialogKembalian.text = "Nominal Terlalu Besar"
-                        }
-                    } else {
-                        tvDialogKembalian.text = "Rp. 0"
-                        tvDialogKembalian.setTextColor(Color.BLACK)
+                withContext(Dispatchers.Main) {
+                    if (responseKategori.isSuccessful && responseKategori.body() != null) {
+                        listKategoriServer.clear()
+                        listKategoriServer.addAll(responseKategori.body()!!)
                     }
+
+                    if (responseProduk.isSuccessful && responseProduk.body() != null) {
+                        listProdukServer.clear()
+                        listProdukServer.addAll(responseProduk.body()!!)
+                    }
+
+                    if (listKategoriServer.isNotEmpty()) {
+                        kategoriAktifId = listKategoriServer[0].id
+                    }
+
+                    renderKategoriKeUI()
+                    renderKatalogKeUI()
                 }
-            })
-
-            dialogView.findViewById<MaterialButton>(R.id.btnDialogBatal).setOnClickListener { alertDialog.dismiss() }
-
-            dialogView.findViewById<MaterialButton>(R.id.btnDialogSelesai).setOnClickListener {
-                val inputStr = etUangDiterima.text.toString().trim()
-                if (inputStr.isNotEmpty()) {
-                    try {
-                        val uangDiterima = inputStr.toLong() // Perbaikan 2: Diubah ke Long agar aman saat diklik selesai
-                        if (uangDiterima >= totalTagihan) {
-
-                            val ringkasanPesanan = StringBuilder()
-                            val ringkasanPenyimpanan = StringBuilder()
-
-                            // Format Tampilan Struk Digital agar Rata Kanan Kiri Monospace Sempurna
-                            fun formatBarisStruk(nama: String, qty: String): String {
-                                val spaceCount = maxOf(1, 32 - nama.length - qty.length)
-                                return nama + " ".repeat(spaceCount) + qty + "\n"
-                            }
-
-                            if (qtyKopi > 0) ringkasanPesanan.append(formatBarisStruk("Es Kopi Susu", "x$qtyKopi"))
-                            if (qtyMatcha > 0) ringkasanPesanan.append(formatBarisStruk("Matcha Latte", "x$qtyMatcha"))
-                            if (qtyAmericano > 0) ringkasanPesanan.append(formatBarisStruk("Iced Americano", "x$qtyAmericano"))
-                            if (qtyEarlGrey > 0) ringkasanPesanan.append(formatBarisStruk("Earl Grey Tea", "x$qtyEarlGrey"))
-                            if (qtyCroissant > 0) ringkasanPesanan.append(formatBarisStruk("Croissant", "x$qtyCroissant"))
-                            if (qtyFrenchFries > 0) ringkasanPesanan.append(formatBarisStruk("French Fries", "x$qtyFrenchFries"))
-                            if (qtyBrownies > 0) ringkasanPesanan.append(formatBarisStruk("Choco Brownies", "x$qtyBrownies"))
-                            if (qtySingkong > 0) ringkasanPesanan.append(formatBarisStruk("Singkong Goreng", "x$qtySingkong"))
-
-                            // Format Simpan Database (Tetap Konsisten untuk Riwayat)
-                            if (qtyKopi > 0) ringkasanPenyimpanan.append("Es Kopi Susu x$qtyKopi\n")
-                            if (qtyMatcha > 0) ringkasanPenyimpanan.append("Matcha Latte x$qtyMatcha\n")
-                            if (qtyAmericano > 0) ringkasanPenyimpanan.append("Iced Americano x$qtyAmericano\n")
-                            if (qtyEarlGrey > 0) ringkasanPenyimpanan.append("Earl Grey Tea x$qtyEarlGrey\n")
-                            if (qtyCroissant > 0) ringkasanPenyimpanan.append("Croissant x$qtyCroissant\n")
-                            if (qtyFrenchFries > 0) ringkasanPenyimpanan.append("French Fries x$qtyFrenchFries\n")
-                            if (qtyBrownies > 0) ringkasanPenyimpanan.append("Choco Brownies x$qtyBrownies\n")
-                            if (qtySingkong > 0) ringkasanPenyimpanan.append("Singkong Goreng x$qtySingkong\n")
-
-                            val sharedPref = getSharedPreferences("CuanPOS_Prefs", MODE_PRIVATE)
-                            val idTrx = "TRX_" + System.currentTimeMillis()
-                            val dataSimpan = "${ringkasanPenyimpanan.toString().trim()} | Total: ${formatRupiah(totalTagihan)}"
-
-                            sharedPref.edit().putString(idTrx, dataSimpan).apply()
-                            alertDialog.dismiss()
-
-                            tampilkanStrukDigital(
-                                ringkasanPesanan.toString().trim(),
-                                totalTagihan,
-                                uangDiterima.toInt(),
-                                (uangDiterima - totalTagihan).toInt()
-                            )
-                        } else {
-                            Toast.makeText(this@KasirActivity, "Pembayaran belum cukup!", Toast.LENGTH_SHORT).show()
-                        }
-                    } catch (e: NumberFormatException) {
-                        Toast.makeText(this@KasirActivity, "Nominal input terlalu besar!", Toast.LENGTH_SHORT).show()
-                    }
-                } else {
-                    Toast.makeText(this@KasirActivity, "Masukkan jumlah uang terlebih dahulu!", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@KasirActivity, "Kesalahan koneksi ke server", Toast.LENGTH_SHORT).show()
                 }
             }
-            alertDialog.show()
         }
     }
 
-    // ================= FUNGSI FORMAT UTILITY INDEPENDEN =================
+    private fun renderKategoriKeUI() {
+        containerKategoriKasir.removeAllViews()
 
-    private fun formatRupiah(number: Int): String {
-        val localeID = Locale("in", "ID")
-        val numberFormat = NumberFormat.getCurrencyInstance(localeID)
-        return numberFormat.format(number).replace("Rp", "Rp. ").replace(",00", "")
+        for (kategori in listKategoriServer) {
+            val isSelected = (kategori.id == kategoriAktifId)
+
+            val btnBubble = MaterialButton(this).apply {
+                text = kategori.name
+                textSize = 13f
+                isAllCaps = false
+
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    setMargins(0, 0, 16, 0)
+                }
+
+                cornerRadius = 24
+
+                if (isSelected) {
+                    backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#0039ff"))
+                    setTextColor(Color.WHITE)
+                } else {
+                    backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#EFEFEF"))
+                    setTextColor(Color.parseColor("#4A4A4A"))
+                }
+
+                setOnClickListener {
+                    kategoriAktifId = kategori.id
+                    renderKategoriKeUI()
+                    renderKatalogKeUI()
+                }
+            }
+            containerKategoriKasir.addView(btnBubble)
+        }
+    }
+
+    private fun renderKatalogKeUI() {
+        listProdukDisplay.clear()
+        listProdukDisplay.addAll(listProdukServer.filter { it.category_id == kategoriAktifId })
+        kasirProdukAdapter.notifyDataSetChanged()
     }
 
     private fun updateKeranjangBelanja() {
-        val totalKopi = qtyKopi * hargaKopi
-        val totalMatcha = qtyMatcha * hargaMatcha
-        val totalAmericano = qtyAmericano * hargaAmericano
-        val totalEarlGrey = qtyEarlGrey * hargaEarlGrey
-        val totalCroissant = qtyCroissant * hargaCroissant
-        val totalFrenchFries = qtyFrenchFries * hargaFrenchFries
-        val totalBrownies = qtyBrownies * hargaBrownies
-        val totalSingkong = qtySingkong * hargaSingkong
+        var totalTagihan = 0
 
-        val totalTagihan = totalKopi + totalMatcha + totalAmericano + totalEarlGrey +
-                totalCroissant + totalFrenchFries + totalBrownies + totalSingkong
+        containerKeranjangItems.removeAllViews()
+        containerKeranjangItems.addView(tvKeranjangKosong)
 
-        if (qtyKopi > 0) {
-            rowItemKopi.visibility = View.VISIBLE
-            tvDetailKopi.text = "Es Kopi Susu x$qtyKopi"
-            tvSubtotalKopi.text = formatRupiah(totalKopi)
-        } else { rowItemKopi.visibility = View.GONE }
+        for ((idProduk, qty) in keranjangMap) {
+            if (qty > 0) {
+                val produk = listProdukServer.find { it.id == idProduk } ?: continue
+                totalTagihan += produk.price * qty
 
-        if (qtyMatcha > 0) {
-            rowItemMatcha.visibility = View.VISIBLE
-            tvDetailMatcha.text = "Matcha Latte x$qtyMatcha"
-            tvSubtotalMatcha.text = formatRupiah(totalMatcha)
-        } else { rowItemMatcha.visibility = View.GONE }
+                val row = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply { setMargins(0, 0, 0, 16) }
+                }
 
-        if (qtyAmericano > 0) {
-            rowItemAmericano.visibility = View.VISIBLE
-            tvDetailAmericano.text = "Iced Americano x$qtyAmericano"
-            tvSubtotalAmericano.text = formatRupiah(totalAmericano)
-        } else { rowItemAmericano.visibility = View.GONE }
+                val tvDetail = TextView(this).apply {
+                    text = "${produk.name} x$qty"
+                    setTextColor(Color.BLACK)
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                }
 
-        if (qtyEarlGrey > 0) {
-            rowItemEarlGrey.visibility = View.VISIBLE
-            tvDetailEarlGrey.text = "Earl Grey Tea x$qtyEarlGrey"
-            tvSubtotalEarlGrey.text = formatRupiah(totalEarlGrey)
-        } else { rowItemEarlGrey.visibility = View.GONE }
+                val tvSubtotal = TextView(this).apply {
+                    text = formatRupiah(produk.price * qty)
+                    setTextColor(Color.BLACK)
+                    setPadding(0, 0, 24, 0)
+                }
 
-        if (qtyCroissant > 0) {
-            rowItemCroissant.visibility = View.VISIBLE
-            tvDetailCroissant.text = "Croissant x$qtyCroissant"
-            tvSubtotalCroissant.text = formatRupiah(totalCroissant)
-        } else { rowItemCroissant.visibility = View.GONE }
+                val btnMinus = MaterialButton(this).apply {
+                    text = "-"
+                    textSize = 18f
+                    layoutParams = LinearLayout.LayoutParams(110, 110)
+                    setPadding(0,0,0,0)
+                    cornerRadius = 24
+                    setOnClickListener {
+                        val currentQty = keranjangMap[produk.id] ?: 0
+                        if (currentQty > 0) {
+                            keranjangMap[produk.id] = currentQty - 1
+                            updateKeranjangBelanja()
+                        }
+                    }
+                }
 
-        if (qtyFrenchFries > 0) {
-            rowItemFrenchFries.visibility = View.VISIBLE
-            tvDetailFrenchFries.text = "French Fries x$qtyFrenchFries"
-            tvSubtotalFrenchFries.text = formatRupiah(totalFrenchFries)
-        } else { rowItemFrenchFries.visibility = View.GONE }
-
-        if (qtyBrownies > 0) {
-            rowItemBrownies.visibility = View.VISIBLE
-            tvDetailBrownies.text = "Choco Brownies x$qtyBrownies"
-            tvSubtotalBrownies.text = formatRupiah(totalBrownies)
-        } else { rowItemBrownies.visibility = View.GONE }
-
-        if (qtySingkong > 0) {
-            rowItemSingkong.visibility = View.VISIBLE
-            tvDetailSingkong.text = "Singkong Goreng x$qtySingkong"
-            tvSubtotalSingkong.text = formatRupiah(totalSingkong)
-        } else { rowItemSingkong.visibility = View.GONE }
+                row.addView(tvDetail)
+                row.addView(tvSubtotal)
+                row.addView(btnMinus)
+                containerKeranjangItems.addView(row)
+            }
+        }
 
         tvKeranjangKosong.visibility = if (totalTagihan > 0) View.GONE else View.VISIBLE
         tvTotalHarga.text = formatRupiah(totalTagihan)
     }
 
     private fun bersihkanSemuaKeranjang() {
-        qtyKopi = 0; qtyMatcha = 0; qtyAmericano = 0; qtyEarlGrey = 0
-        qtyCroissant = 0; qtyFrenchFries = 0; qtyBrownies = 0; qtySingkong = 0
+        keranjangMap.clear()
         updateKeranjangBelanja()
     }
 
-    // ================= FUNGSI DIALOG RIWAYAT TRANSAKSI =================
-    private fun tampilkanRiwayatTransaksi() {
-        val sharedPref = getSharedPreferences("CuanPOS_Prefs", MODE_PRIVATE)
-        val allEntries = sharedPref.all
-            .filter { it.key.startsWith("BILL_") || it.key.startsWith("TRX_") }
-            .toList()
-            .sortedByDescending { it.first }
+    private fun simpanBillKeAntrean() {
+        val totalTagihan = hitungTotalTagihan()
+        if (totalTagihan == 0) {
+            Toast.makeText(this, "Keranjang kosong!", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        // Format data: "id1:qty1|id2:qty2..."
+        val serializedItems = keranjangMap.filter { it.value > 0 }
+            .map { "${it.key}:${it.value}" }
+            .joinToString("|")
+
+        val sharedPref = getSharedPreferences("CuanPOS_Antrean", MODE_PRIVATE)
+        val idBill = "SAVED_" + System.currentTimeMillis()
+        
+        sharedPref.edit().putString(idBill, serializedItems).apply()
+
+        Toast.makeText(this, "Bill Berhasil Disimpan di Antrean!", Toast.LENGTH_LONG).show()
+        bersihkanSemuaKeranjang()
+    }
+
+    private fun tampilkanAntreanBill() {
+        val sharedPref = getSharedPreferences("CuanPOS_Antrean", MODE_PRIVATE)
+        val allEntries = sharedPref.all.filterKeys { it.startsWith("SAVED_") }.toList().sortedByDescending { it.first }
 
         val dialogView = layoutInflater.inflate(R.layout.dialog_riwayat, null)
         val containerRiwayat = dialogView.findViewById<LinearLayout>(R.id.containerRiwayat)
         val btnTutupRiwayat = dialogView.findViewById<MaterialButton>(R.id.btnTutupRiwayat)
-
+        val tvJudul = dialogView.findViewById<TextView>(R.id.tvJudulRiwayat)
+        tvJudul.text = "Antrean Bill (Saved)"
+        
         val builder = AlertDialog.Builder(this).setView(dialogView).setCancelable(false)
         val alertDialog = builder.create()
         alertDialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
 
-        val customFont = try {
-            androidx.core.content.res.ResourcesCompat.getFont(this, R.font.open_sauce_regular)
-        } catch (e: Exception) { Typeface.create(Typeface.DEFAULT, Typeface.NORMAL) }
-
-        val mediumFont = try {
-            androidx.core.content.res.ResourcesCompat.getFont(this, R.font.open_sauce_medium)
-        } catch (e: Exception) { Typeface.create(Typeface.DEFAULT, Typeface.BOLD) }
-
         if (allEntries.isEmpty()) {
             val tvKosong = TextView(this).apply {
-                text = "Belum ada riwayat transaksi hari ini."
+                text = "Belum ada antrean bill."
                 setTextColor(Color.GRAY)
                 textSize = 14f
-                gravity = android.view.Gravity.CENTER
+                gravity = Gravity.CENTER
                 setPadding(0, 40, 0, 40)
-                typeface = customFont
             }
             containerRiwayat.addView(tvKosong)
         } else {
             for ((key, value) in allEntries) {
+                val serialized = value.toString()
+                val items = serialized.split("|")
+                
                 val cardView = MaterialCardView(this).apply {
                     layoutParams = LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT,
                         LinearLayout.LayoutParams.WRAP_CONTENT
                     ).apply { setMargins(0, 0, 0, 16) }
-                    setCardBackgroundColor(if (key.startsWith("TRX_")) Color.parseColor("#E8F5E9") else Color.parseColor("#FFF3E0"))
+                    setCardBackgroundColor(Color.parseColor("#FFF3E0")) // Warm color for pending
+                    radius = 24f
+                    strokeWidth = 0
+                }
+
+                val layoutKonten = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(36, 28, 36, 28)
+                }
+
+                val tvTime = TextView(this).apply {
+                    val timestamp = key.substringAfter("SAVED_").toLongOrNull() ?: 0L
+                    val sdf = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+                    text = "Saved at: ${sdf.format(Date(timestamp))}"
+                    setTextColor(Color.BLACK)
+                    textSize = 14f
+                    setTypeface(null, Typeface.BOLD)
+                }
+
+                val tvItems = TextView(this).apply {
+                    val sb = StringBuilder()
+                    var total = 0
+                    for (itemStr in items) {
+                        val parts = itemStr.split(":")
+                        if (parts.size == 2) {
+                            val id = parts[0].toIntOrNull() ?: 0
+                            val qty = parts[1].toIntOrNull() ?: 0
+                            val product = listProdukServer.find { it.id == id }
+                            sb.append("${product?.name ?: "Unknown"} x$qty\n")
+                            total += (product?.price ?: 0) * qty
+                        }
+                    }
+                    sb.append("Total: ${formatRupiah(total)}")
+                    text = sb.toString()
+                    setTextColor(Color.BLACK)
+                    textSize = 13f
+                }
+
+                layoutKonten.addView(tvTime)
+                layoutKonten.addView(tvItems)
+                cardView.addView(layoutKonten)
+                
+                cardView.setOnClickListener {
+                    // Resume this bill
+                    if (keranjangMap.filter { it.value > 0 }.isNotEmpty()) {
+                        Toast.makeText(this@KasirActivity, "Bersihkan keranjang dulu untuk resume!", Toast.LENGTH_SHORT).show()
+                    } else {
+                        for (itemStr in items) {
+                            val parts = itemStr.split(":")
+                            if (parts.size == 2) {
+                                val id = parts[0].toIntOrNull() ?: 0
+                                val qty = parts[1].toIntOrNull() ?: 0
+                                keranjangMap[id] = qty
+                            }
+                        }
+                        updateKeranjangBelanja()
+                        sharedPref.edit().remove(key).apply()
+                        alertDialog.dismiss()
+                        Toast.makeText(this@KasirActivity, "Bill dilanjutkan", Toast.LENGTH_SHORT).show()
+                    }
+                }
+
+                containerRiwayat.addView(cardView)
+            }
+        }
+
+        btnTutupRiwayat.setOnClickListener { alertDialog.dismiss() }
+        alertDialog.show()
+    }
+
+    private fun prosesPembayaran() {
+        val totalTagihan = hitungTotalTagihan()
+        if (totalTagihan == 0) {
+            Toast.makeText(this, "Keranjang masih kosong!", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val dialogView = layoutInflater.inflate(R.layout.dialog_pembayaran, null)
+        val tvDialogTotal = dialogView.findViewById<TextView>(R.id.tvDialogTotal)
+        val etUangDiterima = dialogView.findViewById<EditText>(R.id.etUangDiterima)
+        val tvDialogKembalian = dialogView.findViewById<TextView>(R.id.tvDialogKembalian)
+
+        tvDialogTotal.text = formatRupiah(totalTagihan)
+
+        val builder = AlertDialog.Builder(this).setView(dialogView).setCancelable(false)
+        val alertDialog = builder.create()
+        alertDialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+
+        etUangDiterima.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                val inputStr = s.toString().trim()
+                if (inputStr.isNotEmpty()) {
+                    try {
+                        val uangDiterima = inputStr.toLong()
+                        val kembalian = uangDiterima - totalTagihan
+                        if (kembalian >= 0) {
+                            tvDialogKembalian.text = formatRupiah(kembalian.toInt())
+                            tvDialogKembalian.setTextColor(Color.parseColor("#4CAF50"))
+                        } else {
+                            tvDialogKembalian.text = "Uang Kurang!"
+                            tvDialogKembalian.setTextColor(Color.RED)
+                        }
+                    } catch (e: NumberFormatException) {
+                        tvDialogKembalian.text = "Nominal Terlalu Besar"
+                    }
+                } else {
+                    tvDialogKembalian.text = "Rp. 0"
+                    tvDialogKembalian.setTextColor(Color.BLACK)
+                }
+            }
+        })
+
+        dialogView.findViewById<MaterialButton>(R.id.btnDialogBatal).setOnClickListener { alertDialog.dismiss() }
+
+        dialogView.findViewById<MaterialButton>(R.id.btnDialogSelesai).setOnClickListener {
+            val inputStr = etUangDiterima.text.toString().trim()
+            if (inputStr.isNotEmpty()) {
+                try {
+                    val uangDiterima = inputStr.toLong()
+                    if (uangDiterima >= totalTagihan) {
+                        simpanTransaksiKeServer(totalTagihan, uangDiterima.toInt(), alertDialog)
+                    } else {
+                        Toast.makeText(this@KasirActivity, "Pembayaran belum cukup!", Toast.LENGTH_SHORT).show()
+                    }
+                } catch (e: NumberFormatException) {
+                    Toast.makeText(this@KasirActivity, "Nominal input terlalu besar!", Toast.LENGTH_SHORT).show()
+                }
+            } else {
+                Toast.makeText(this@KasirActivity, "Masukkan jumlah uang terlebih dahulu!", Toast.LENGTH_SHORT).show()
+            }
+        }
+        alertDialog.show()
+    }
+
+    private fun simpanTransaksiKeServer(total: Int, bayar: Int, dialog: AlertDialog) {
+        val sharedPref = getSharedPreferences("CuanPOS_Prefs", MODE_PRIVATE)
+        val token = sharedPref.getString("AUTH_TOKEN", "") ?: ""
+
+        val items = keranjangMap.filter { it.value > 0 }.map { (id, qty) ->
+            TransactionItemRequest(
+                product_id = id,
+                quantity = qty
+            )
+        }
+
+        val request = TransactionRequest(channel = "mobile", items = items)
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val response = ApiClient.instance.createTransaction(token, request)
+                withContext(Dispatchers.Main) {
+                    if (response.isSuccessful) {
+                        dialog.dismiss()
+                        
+                        val ringkasan = StringBuilder()
+                        for (item in items) {
+                            val p = listProdukServer.find { it.id == item.product_id }
+                            val namaPad = (p?.name ?: "Unknown").padEnd(18, ' ')
+                            ringkasan.append("$namaPad x${item.quantity}\n")
+                        }
+
+                        tampilkanStrukDigital(
+                            ringkasan.toString().trim(),
+                            total,
+                            bayar,
+                            bayar - total
+                        )
+                        fetchDataDariServer()
+                    } else {
+                        Toast.makeText(this@KasirActivity, "Gagal simpan transaksi ke server", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@KasirActivity, "Kesalahan koneksi server", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    private fun hitungTotalTagihan(): Int {
+        var total = 0
+        for ((idProduk, qty) in keranjangMap) {
+            val produk = listProdukServer.find { it.id == idProduk }
+            if (produk != null) {
+                total += (produk.price * qty)
+            }
+        }
+        return total
+    }
+
+    private fun formatRupiah(number: Int): String {
+        val localeID = Locale.forLanguageTag("id-ID")
+        val numberFormat = NumberFormat.getCurrencyInstance(localeID)
+        return numberFormat.format(number).replace("Rp", "Rp. ").replace(",00", "")
+    }
+
+    private fun tampilkanRiwayatTransaksi() {
+        val sharedPref = getSharedPreferences("CuanPOS_Prefs", MODE_PRIVATE)
+        val token = sharedPref.getString("AUTH_TOKEN", "") ?: ""
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                // Using getLaporanPenjualan as it returns the transaction list with details
+                val response = ApiClient.instance.getKasirHistory(token)
+                withContext(Dispatchers.Main) {
+                    if (response.isSuccessful && response.body() != null) {
+                        showHistoryDialog(response.body()!!.data)
+                    } else {
+                        Toast.makeText(this@KasirActivity, "Gagal memuat riwayat", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@KasirActivity, "Kesalahan koneksi", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    private fun showHistoryDialog(transactions: List<com.example.cuanpos.network.TransactionResponse>) {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_riwayat, null)
+        val containerRiwayat = dialogView.findViewById<LinearLayout>(R.id.containerRiwayat)
+        val btnTutupRiwayat = dialogView.findViewById<MaterialButton>(R.id.btnTutupRiwayat)
+        val tvJudul = dialogView.findViewById<TextView>(R.id.tvJudulRiwayat)
+        tvJudul.text = "History Transaksi (Server)"
+
+        val builder = AlertDialog.Builder(this).setView(dialogView).setCancelable(false)
+        val alertDialog = builder.create()
+        alertDialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+
+        if (transactions.isEmpty()) {
+            val tvKosong = TextView(this).apply {
+                text = "Belum ada riwayat transaksi."
+                setTextColor(Color.GRAY)
+                textSize = 14f
+                gravity = Gravity.CENTER
+                setPadding(0, 40, 0, 40)
+            }
+            containerRiwayat.addView(tvKosong)
+        } else {
+            for (tx in transactions) {
+                val cardView = MaterialCardView(this).apply {
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply { setMargins(0, 0, 0, 16) }
+                    setCardBackgroundColor(if (tx.status == "selesai") Color.parseColor("#E8F5E9") else Color.parseColor("#FFF3E0"))
                     radius = 24f
                     strokeWidth = 0
                 }
@@ -489,42 +561,19 @@ class KasirActivity : AppCompatActivity() {
                 }
 
                 val tvJudul = TextView(this).apply {
-                    text = if (key.startsWith("TRX_")) "[LUNAS]" else "[BELUM BAYAR]"
+                    text = if (tx.status == "selesai") "[LUNAS]" else "[BATAL]"
                     setTextColor(Color.BLACK)
                     textSize = 14f
-                    typeface = mediumFont
+                    setTypeface(null, Typeface.BOLD)
                 }
 
                 val tvData = TextView(this).apply {
-                    val rawData = value.toString()
-                    val bersihItem = rawData.substringBefore(" | Total:").trim()
-
-                    val nominalTotal = rawData.substringAfter("Total: Rp. ", "").substringAfter("Total: Rp ", "")
-                        .substringBefore("\n").trim()
-                        .ifEmpty { rawData.substringAfter("| Total:", "0").replace("Rp", "").replace(".", "").trim() }
-
-                    val barisItemFormatted = bersihItem.split("\n").joinToString("\n") { baris ->
-                        val item = baris.trim()
-                        if (item.contains(" x")) {
-                            val nama = item.substringBefore(" x").trim()
-                            val qty = item.substringAfter(" x").trim()
-                            val spaces = " ".repeat(maxOf(1, 30 - nama.length))
-                            "$nama$spaces$qty"
-                        } else if (item.contains("x")) {
-                            val nama = item.substringBefore("x").trim()
-                            val qty = "x" + item.substringAfter("x").trim()
-                            val spaces = " ".repeat(maxOf(1, 30 - nama.length))
-                            "$nama$spaces$qty"
-                        } else {
-                            item
-                        }
-                    }
-
-                    val totalTeks = "Rp. " + nominalTotal.replace("Rp.", "").replace("Rp", "").trim()
-                    val spacesTotal = " ".repeat(maxOf(1, 26 - "total".length))
-                    val barisTotalFormatted = "total$spacesTotal$totalTeks"
-
-                    text = "--------------------------------\n$barisItemFormatted\n--------------------------------\n$barisTotalFormatted"
+                    val sb = StringBuilder()
+                    tx.details?.forEach { sb.append("${it.product?.name} x${it.quantity}\n") }
+                    sb.append("--------------------------------\n")
+                    sb.append("Total: ${formatRupiah(tx.total_amount)}")
+                    
+                    text = sb.toString()
                     setTextColor(Color.BLACK)
                     textSize = 13f
                     typeface = Typeface.MONOSPACE
@@ -532,46 +581,23 @@ class KasirActivity : AppCompatActivity() {
 
                 layoutKonten.addView(tvJudul)
                 layoutKonten.addView(tvData)
-                cardView.addView(layoutKonten)
 
-                // Fitur klik pas diclick pada antrean BILL / BELUM BAYAR
-                if (key.startsWith("BILL_")) {
-                    cardView.setOnClickListener {
-                        val dataStr = value.toString()
-                        bersihkanSemuaKeranjang()
-
-                        // OPTIMASI: Ambil daftar item yang bersih sebelum tanda pembatas "| Total:"
-                        val bersihItem = dataStr.substringBefore(" | Total:").trim()
-                        // Pisahkan per baris berdasarkan enter (\n)
-                        val barisTeks = bersihItem.split("\n")
-
-                        // Fungsi pembantu parsing yang diperbaiki total
-                        fun ambilKuantitasDariTeks(namaMenu: String): Int {
-                            val barisKetemu = barisTeks.find { it.contains(namaMenu) } ?: return 0
-                            // Ambil angka setelah huruf 'x' secara aman
-                            val setelahX = barisKetemu.substringAfter("x", "").trim()
-                            return setelahX.toIntOrNull() ?: 0
+                if (tx.status == "selesai") {
+                    val btnRequestVoid = MaterialButton(this, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+                        text = "Request Void"
+                        textSize = 12f
+                        layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                            gravity = Gravity.END
+                            topMargin = 8
                         }
-
-                        // Mengisi kembali variabel kuantitas dengan data yang akurat
-                        qtyKopi = ambilKuantitasDariTeks("Es Kopi Susu")
-                        qtyMatcha = ambilKuantitasDariTeks("Matcha Latte")
-                        qtyAmericano = ambilKuantitasDariTeks("Iced Americano")
-                        qtyEarlGrey = ambilKuantitasDariTeks("Earl Grey Tea")
-                        qtyCroissant = ambilKuantitasDariTeks("Croissant")
-                        qtyFrenchFries = ambilKuantitasDariTeks("French Fries")
-                        qtyBrownies = ambilKuantitasDariTeks("Choco Brownies")
-                        qtySingkong = ambilKuantitasDariTeks("Singkong Goreng")
-
-                        // Render ulang tampilan keranjang belanja
-                        updateKeranjangBelanja()
-
-                        // Hapus bill tua dari antrean SharedPreferences agar tidak menumpuk
-                        sharedPref.edit().remove(key).apply()
-                        Toast.makeText(this@KasirActivity, "Bill berhasil dimuat kembali!", Toast.LENGTH_SHORT).show()
-                        alertDialog.dismiss()
+                        setOnClickListener {
+                            requestVoid(tx, alertDialog)
+                        }
                     }
+                    layoutKonten.addView(btnRequestVoid)
                 }
+
+                cardView.addView(layoutKonten)
                 containerRiwayat.addView(cardView)
             }
         }
@@ -580,7 +606,48 @@ class KasirActivity : AppCompatActivity() {
         alertDialog.show()
     }
 
-    // ================= FUNGSI DIALOG STRUK DIGITAL =================
+    private fun requestVoid(transaction: com.example.cuanpos.network.TransactionResponse, historyDialog: AlertDialog) {
+        // Since backend voidTransaction immediately cancels it, we just call it directly or inform the user
+        // If the user wants a "request" phase, we'd need a separate endpoint.
+        // For now, I'll implement a confirmation dialog.
+        
+        AlertDialog.Builder(this)
+            .setTitle("Request Void")
+            .setMessage("Apakah Anda yakin ingin membatalkan transaksi #TRX-${transaction.id}?")
+            .setPositiveButton("Ya, Void") { _, _ ->
+                sendVoidRequest(transaction.id, historyDialog)
+            }
+            .setNegativeButton("Batal", null)
+            .show()
+    }
+
+    private fun sendVoidRequest(txId: Int, historyDialog: AlertDialog) {
+        val sharedPref = getSharedPreferences("CuanPOS_Prefs", MODE_PRIVATE)
+        val token = sharedPref.getString("AUTH_TOKEN", "") ?: ""
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                // Call the NEW kasir request endpoint
+                val response = ApiClient.instance.requestVoidTransaction(token, txId)
+                withContext(Dispatchers.Main) {
+                    if (response.isSuccessful) {
+                        Toast.makeText(this@KasirActivity, "Permintaan void dikirim ke Admin", Toast.LENGTH_SHORT).show()
+                        historyDialog.dismiss()
+                    } else {
+                        //Toast.makeText(this@KasirActivity, "Gagal mengirim permintaan void", Toast.LENGTH_SHORT).show()
+                        // TAMPILKAN ERROR CODE & MESSAGE DARI BACKEND
+                        val errorBody = response.errorBody()?.string()
+                        Toast.makeText(this@KasirActivity, "Gagal (${response.code()}): $errorBody", Toast.LENGTH_LONG).show()
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@KasirActivity, "Kesalahan koneksi", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
     private fun tampilkanStrukDigital(detailPesanan: String, total: Int, uang: Int, kembalian: Int) {
         val sdf = SimpleDateFormat("dd-MM-yyyy HH:mm:ss", Locale.getDefault())
         val witaTgl = sdf.format(Date())
@@ -588,10 +655,6 @@ class KasirActivity : AppCompatActivity() {
         val formatTotal = formatRupiah(total)
         val formatBayar = formatRupiah(uang)
         val formatKembali = formatRupiah(kembalian)
-
-        val barisTotal = "Total".padEnd(32 - formatTotal.length) + formatTotal
-        val barisBayar = "Bayar".padEnd(32 - formatBayar.length) + formatBayar
-        val barisKembali = "Kembali".padEnd(32 - formatKembali.length) + formatKembali
 
         val strukText = """
 ================================
@@ -602,9 +665,9 @@ class KasirActivity : AppCompatActivity() {
 Items:
 $detailPesanan
 --------------------------------
-$barisTotal
-$barisBayar
-$barisKembali
+Total: $formatTotal
+Bayar: $formatBayar
+Kembali: $formatKembali
 ================================
        Terima Kasih Atas        
          Kunjungan Anda         
@@ -623,15 +686,7 @@ $barisKembali
             textSize = 15f
             setTextColor(Color.BLACK)
             typeface = Typeface.MONOSPACE
-            textAlignment = View.TEXT_ALIGNMENT_TEXT_START
-
             setPadding(55, 40, 20, 40)
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                gravity = android.view.Gravity.CENTER_HORIZONTAL
-            }
         }
         scrollView.addView(textViewStruk)
 
@@ -642,29 +697,17 @@ $barisKembali
             .setCancelable(false)
             .show()
     }
+
     private fun tunjukkanDialogLogout() {
-        // 1. Inflate layout custom dialog_logout yang baru dibuat
         val dialogView = layoutInflater.inflate(R.layout.dialog_logout, null)
-
-        val builder = androidx.appcompat.app.AlertDialog.Builder(this)
-        builder.setView(dialogView)
-
-        val dialog = builder.create()
-
-        // Agar background luar MaterialCardView transparan dan rounded corner-nya terlihat rapi
+        val dialog = AlertDialog.Builder(this).setView(dialogView).create()
         dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
 
-        // 2. Hubungkan komponen MaterialButton dari layout custom
-        val btnBatal = dialogView.findViewById<MaterialButton>(R.id.btnBatalLogout)
-        val btnYa = dialogView.findViewById<MaterialButton>(R.id.btnYaLogout)
-
-        // 3. Logika Aksi Tombol BATAL (Menutup dialog saja)
-        btnBatal.setOnClickListener {
+        dialogView.findViewById<MaterialButton>(R.id.btnBatalLogout).setOnClickListener {
             dialog.dismiss()
         }
 
-        // 4. Logika Aksi Tombol KELUAR (Pindah ke halaman utama/Login)
-        btnYa.setOnClickListener {
+        dialogView.findViewById<MaterialButton>(R.id.btnYaLogout).setOnClickListener {
             val intent = Intent(this, MainActivity::class.java)
             startActivity(intent)
             finish()

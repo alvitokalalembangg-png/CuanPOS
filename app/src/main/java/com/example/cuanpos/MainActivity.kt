@@ -11,6 +11,13 @@ import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.textfield.TextInputLayout
+import com.example.cuanpos.network.ApiClient
+import com.example.cuanpos.network.LoginAdminRequest
+import com.example.cuanpos.network.LoginMobileRequest
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : AppCompatActivity() {
 
@@ -62,35 +69,78 @@ class MainActivity : AppCompatActivity() {
         // 3. Logika Klik Tombol MASUK / LOGIN
         btnLogin.setOnClickListener {
             if (isAdminTab) {
-                // --- PROSES LOGIN ADMIN ---
+                // --- LIVE API: LOGIN ADMIN ---
                 val email = etEmail.text.toString().trim()
                 val password = etPassword.text.toString().trim()
 
-                if (email == "admin@cuanpos.com" && password == "admin123") {
-                    Toast.makeText(this, "Sukses Masuk Sebagai Admin!", Toast.LENGTH_SHORT).show()
-
-                    // PERBAIKAN: Pindah ke halaman utama Admin
-                    val intent = Intent(this, AdminActivity::class.java)
-                    startActivity(intent)
-                    finish() // Menutup MainActivity agar tidak bisa di-back kembali ke login
-
-                } else {
-                    Toast.makeText(this, "Email atau Password Admin Salah!", Toast.LENGTH_SHORT).show()
+                if (email.isEmpty() || password.isEmpty()) {
+                    Toast.makeText(this, "Email dan Password tidak boleh kosong!", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
                 }
+
+                lifecycleScope.launch(Dispatchers.IO) {
+                    try {
+                        val response = ApiClient.instance.loginAdmin(LoginAdminRequest(email, password))
+                        withContext(Dispatchers.Main) {
+                            if (response.isSuccessful && response.body() != null) {
+                                val result = response.body()!!
+                                // Simpan token Sanctum jika diperlukan nanti (misal lewat SharedPreferences)
+                                val token = result.token
+                                // Gunakan token agar tidak ada warning unused variable
+                                android.util.Log.d("MainActivity", "Token: $token")
+
+                                val sharedPref = getSharedPreferences("CuanPOS_Prefs", MODE_PRIVATE)
+                                sharedPref.edit().putString("AUTH_TOKEN", "Bearer ${result.token}").apply()
+
+                                Toast.makeText(this@MainActivity, "Sukses Masuk Sebagai Admin!", Toast.LENGTH_SHORT).show()
+                                val intent = Intent(this@MainActivity, AdminActivity::class.java)
+                                startActivity(intent)
+                                finish()
+                            } else {
+                                Toast.makeText(this@MainActivity, "Email atau Password Admin Salah!", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    } catch (e: Exception) {
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(this@MainActivity, "Gagal terhubung ke server: ${e.message}", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+
             } else {
-                // --- PROSES LOGIN KASIR ---
+                // --- LIVE API: LOGIN KASIR (PIN) ---
                 val pin = etPin.text.toString().trim()
 
-                if (pin == "1234") {
-                    Toast.makeText(this, "Sukses Masuk Sebagai Kasir!", Toast.LENGTH_SHORT).show()
+                if (pin.length != 4) { // Menyesuaikan validasi size:6 di AuthController.php Laravel
+                    Toast.makeText(this, "PIN Kasir harus 4 digit!", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
 
-                    // KODE PERPINDAHAN TEMPAT KE PAGE KASIR
-                    val intent = Intent(this, KasirActivity::class.java)
-                    startActivity(intent)
-                    finish() // Menutup MainActivity agar tidak bisa di-back ke login lagi
+                lifecycleScope.launch(Dispatchers.IO) {
+                    try {
+                        val response = ApiClient.instance.loginMobile(LoginMobileRequest(pin))
+                        withContext(Dispatchers.Main) {
+                            if (response.isSuccessful && response.body() != null) {
+                                val result = response.body()!!
+                                val token = result.token
+                                android.util.Log.d("MainActivity", "Token: $token")
 
-                } else {
-                    Toast.makeText(this, "PIN Kasir Salah! (Gunakan 1234)", Toast.LENGTH_SHORT).show()
+                                val sharedPref = getSharedPreferences("CuanPOS_Prefs", MODE_PRIVATE)
+                                sharedPref.edit().putString("AUTH_TOKEN", "Bearer ${result.token}").apply()
+
+                                Toast.makeText(this@MainActivity, "Sukses Masuk Sebagai Kasir!", Toast.LENGTH_SHORT).show()
+                                val intent = Intent(this@MainActivity, KasirActivity::class.java)
+                                startActivity(intent)
+                                finish()
+                            } else {
+                                Toast.makeText(this@MainActivity, "PIN Kasir Salah atau Tidak Ditemukan!", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    } catch (e: Exception) {
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(this@MainActivity, "Gagal terhubung ke server: ${e.message}", Toast.LENGTH_LONG).show()
+                        }
+                    }
                 }
             }
         }

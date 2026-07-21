@@ -6,10 +6,15 @@ import android.view.ViewGroup
 import android.widget.TextView
 import android.widget.Toast
 import androidx.recyclerview.widget.RecyclerView
+import com.example.cuanpos.network.TransactionResponse
 import com.google.android.material.button.MaterialButton
+import java.text.NumberFormat
+import java.util.Locale
 
-class VoidAdapter(private val listVoid: ArrayList<VoidTransaksi>) :
-    RecyclerView.Adapter<VoidAdapter.ViewHolder>() {
+class VoidAdapter(
+    private val listVoid: ArrayList<TransactionResponse>,
+    private val onActionClick: (TransactionResponse, Boolean) -> Unit // Boolean: true = approve, false = reject
+) : RecyclerView.Adapter<VoidAdapter.ViewHolder>() {
 
     class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val tvId: TextView = view.findViewById(R.id.tvIdTransaksi)
@@ -26,23 +31,23 @@ class VoidAdapter(private val listVoid: ArrayList<VoidTransaksi>) :
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val item = listVoid[position]
-        holder.tvId.text = item.idTransaksi
-        holder.tvTotal.text = item.total
-        holder.tvAlasan.text = "Alasan: ${item.alasan}"
+        holder.tvId.text = "#TRX-${item.id}"
+        holder.tvTotal.text = formatRupiah(item.total_amount)
+        holder.tvAlasan.text = "Status: ${item.status}"
 
         holder.btnTolak.setOnClickListener {
-            Toast.makeText(holder.itemView.context, "${item.idTransaksi} Ditolak", Toast.LENGTH_SHORT).show()
-            listVoid.removeAt(position)
-            notifyItemRemoved(position)
-            notifyItemRangeChanged(position, listVoid.size)
+            onActionClick(item, false)
         }
 
         holder.btnSetujui.setOnClickListener {
-            Toast.makeText(holder.itemView.context, "${item.idTransaksi} Disetujui (Void)", Toast.LENGTH_SHORT).show()
-            listVoid.removeAt(position)
-            notifyItemRemoved(position)
-            notifyItemRangeChanged(position, listVoid.size)
+            onActionClick(item, true)
         }
+    }
+
+    private fun formatRupiah(number: Int): String {
+        val localeID = Locale.forLanguageTag("id-ID")
+        val numberFormat = NumberFormat.getCurrencyInstance(localeID)
+        return numberFormat.format(number).replace("Rp", "Rp. ").replace(",00", "")
     }
 
     override fun getItemCount(): Int = listVoid.size

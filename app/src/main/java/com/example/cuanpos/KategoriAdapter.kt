@@ -29,7 +29,7 @@ class KategoriAdapter(
         private val btnHapusKategori: ImageView = itemView.findViewById(R.id.btnHapusKategori)
 
         fun bind(kategori: Kategori, onDeleteClick: (Kategori) -> Unit) {
-            tvNamaKategoriItem.text = kategori.nama
+            tvNamaKategoriItem.text = kategori.name
 
             btnHapusKategori.setOnClickListener {
                 onDeleteClick(kategori)

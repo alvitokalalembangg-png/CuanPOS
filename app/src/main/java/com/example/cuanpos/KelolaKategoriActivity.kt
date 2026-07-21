@@ -10,7 +10,12 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.lifecycle.lifecycleScope
+import com.example.cuanpos.network.ApiClient
 import com.google.android.material.button.MaterialButton
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class KelolaKategoriActivity : AppCompatActivity() {
 
@@ -39,15 +44,9 @@ class KelolaKategoriActivity : AppCompatActivity() {
         btnSimpanKategori = findViewById(R.id.btnSimpanKategori)
         btnBackKeAdmin = findViewById(R.id.btnBackKeAdmin)
 
-        // Dummy Data awal
-        listKategori.add(Kategori("1", "Makanan"))
-        listKategori.add(Kategori("2", "Minuman"))
-
         // Setup Adapter
         kategoriAdapter = KategoriAdapter(listKategori) { kategoriDihapus: Kategori ->
-            listKategori.remove(kategoriDihapus)
-            kategoriAdapter.notifyDataSetChanged()
-            Toast.makeText(this, "${kategoriDihapus.nama} berhasil dihapus", Toast.LENGTH_SHORT).show()
+            hapusKategori(kategoriDihapus)
         }
 
         rvKategori.layoutManager = LinearLayoutManager(this)
@@ -63,14 +62,83 @@ class KelolaKategoriActivity : AppCompatActivity() {
             val namaKategoriBaru = etNamaKategori.text.toString().trim()
 
             if (namaKategoriBaru.isNotEmpty()) {
-                val idUnik = System.currentTimeMillis().toString()
-                listKategori.add(Kategori(id = idUnik, nama = namaKategoriBaru))
-                kategoriAdapter.notifyDataSetChanged()
-                rvKategori.scrollToPosition(listKategori.size - 1)
-                etNamaKategori.text.clear()
-                Toast.makeText(this, "Kategori berhasil ditambahkan", Toast.LENGTH_SHORT).show()
+                simpanKategori(namaKategoriBaru)
             } else {
                 etNamaKategori.error = "Nama kategori tidak boleh kosong!"
+            }
+        }
+
+        fetchKategori()
+    }
+
+    private fun fetchKategori() {
+        val sharedPref = getSharedPreferences("CuanPOS_Prefs", MODE_PRIVATE)
+        val token = sharedPref.getString("AUTH_TOKEN", "") ?: ""
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val response = ApiClient.instance.getCategories(token)
+                withContext(Dispatchers.Main) {
+                    if (response.isSuccessful && response.body() != null) {
+                        listKategori.clear()
+                        listKategori.addAll(response.body()!!)
+                        kategoriAdapter.notifyDataSetChanged()
+                    } else {
+                        Toast.makeText(this@KelolaKategoriActivity, "Gagal memuat kategori", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@KelolaKategoriActivity, "Kesalahan koneksi", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    private fun simpanKategori(nama: String) {
+        val sharedPref = getSharedPreferences("CuanPOS_Prefs", MODE_PRIVATE)
+        val token = sharedPref.getString("AUTH_TOKEN", "") ?: ""
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val kategoriBaru = Kategori(0, nama) // ID 0 for new
+                val response = ApiClient.instance.createCategory(token, kategoriBaru)
+                withContext(Dispatchers.Main) {
+                    if (response.isSuccessful) {
+                        etNamaKategori.text.clear()
+                        Toast.makeText(this@KelolaKategoriActivity, "Kategori ditambahkan", Toast.LENGTH_SHORT).show()
+                        fetchKategori()
+                    } else {
+                        Toast.makeText(this@KelolaKategoriActivity, "Gagal menambah kategori", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@KelolaKategoriActivity, "Gagal terhubung ke server", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    private fun hapusKategori(kategori: Kategori) {
+        val sharedPref = getSharedPreferences("CuanPOS_Prefs", MODE_PRIVATE)
+        val token = sharedPref.getString("AUTH_TOKEN", "") ?: ""
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val response = ApiClient.instance.deleteCategory(token, kategori.id)
+                withContext(Dispatchers.Main) {
+                    if (response.isSuccessful) {
+                        Toast.makeText(this@KelolaKategoriActivity, "${kategori.name} dihapus", Toast.LENGTH_SHORT).show()
+                        fetchKategori()
+                    } else {
+                        Toast.makeText(this@KelolaKategoriActivity, "Gagal menghapus kategori", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@KelolaKategoriActivity, "Kesalahan koneksi", Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }
