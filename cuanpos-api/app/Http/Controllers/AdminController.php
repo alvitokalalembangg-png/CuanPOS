@@ -23,6 +23,34 @@ class AdminController extends Controller
         return response()->json(['message' => 'Produk berhasil ditambahkan', 'data' => $product], 201);
     }
 
+    public function updateProduct(Request $request, $id) {
+        $product = Product::find($id);
+        if (!$product) {
+            return response()->json(['message' => 'Produk tidak ditemukan'], 404);
+        }
+
+        $validated = $request->validate([
+            'category_id' => 'sometimes|exists:categories,id',
+            'name' => 'sometimes|string|max:255',
+            'price' => 'sometimes|numeric|min:0',
+            'stock' => 'sometimes|integer|min:0',
+            'gambar_url' => 'nullable|url'
+        ]);
+
+        $product->update($validated);
+        return response()->json(['message' => 'Produk berhasil diperbarui', 'data' => $product]);
+    }
+
+    public function deleteProduct($id) {
+        $product = Product::find($id);
+        if (!$product) {
+            return response()->json(['message' => 'Produk tidak ditemukan'], 404);
+        }
+
+        $product->delete();
+        return response()->json(['message' => 'Produk berhasil dihapus']);
+    }
+
     // --- KELOLA KATEGORI ---
     public function storeCategory(Request $request) {
         $validated = $request->validate([
@@ -33,32 +61,81 @@ class AdminController extends Controller
         return response()->json(['message' => 'Kategori berhasil ditambahkan', 'data' => $category], 201);
     }
 
+    public function updateCategory(Request $request, $id) {
+        $category = Category::find($id);
+        if (!$category) {
+            return response()->json(['message' => 'Kategori tidak ditemukan'], 404);
+        }
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:255'
+        ]);
+
+        $category->update($validated);
+        return response()->json(['message' => 'Kategori berhasil diperbarui', 'data' => $category]);
+    }
+
+    public function deleteCategory($id) {
+        $category = Category::find($id);
+        if (!$category) {
+            return response()->json(['message' => 'Kategori tidak ditemukan'], 404);
+        }
+
+        // Cek jika kategori masih dipakai di produk
+        if ($category->products()->count() > 0) {
+            return response()->json(['message' => 'Kategori tidak dapat dihapus karena masih digunakan oleh produk'], 400);
+        }
+
+        $category->delete();
+        return response()->json(['message' => 'Kategori berhasil dihapus']);
+    }
+
     // --- LAPORAN PENJUALAN ---
     public function laporanPenjualan() {
-        // Mengambil semua transaksi beserta detail dan data kasirnya
-        $transactions = Transaction::with(['details.product', 'kasir'])->orderBy('created_at', 'desc')->get();
+        $transactions = Transaction::with(['details.product', 'kasir'])
+            ->orderBy('created_at', 'desc')
+            ->get();
         return response()->json(['data' => $transactions]);
     }
 
-    // --- APPROVAL VOID (Pembatalan Transaksi) ---
-    public function voidTransaction($id) {
-        $transaction = Transaction::find($id);
-        
-        if (!$transaction) {
-            return response()->json(['message' => 'Transaksi tidak ditemukan'], 404);
-        }
-        
-        if ($transaction->status === 'batal') {
-            return response()->json(['message' => 'Transaksi sudah dibatalkan sebelumnya'], 400);
-        }
-
-        $transaction->update(['status' => 'batal']);
-
-        // Logika mengembalikan stok produk
-        foreach ($transaction->details as $detail) {
-            $detail->product->increment('stock', $detail->quantity);
-        }
-
-        return response()->json(['message' => 'Transaksi berhasil di-void dan stok dikembalikan']);
+    // 1. Ambil transaksi untuk Approval Void (Admin hanya melihat yang void_status == 'pending')
+    public function getPendingVoid() {
+        $transactions = Transaction::with(['details.product', 'kasir'])
+            ->where('void_status', 'pending')
+            ->orderBy('created_at', 'desc')
+            ->get();
+            
+        return response()->json(['data' => $transactions]);
     }
+
+    public function voidTransaction($id) { // This is APPROVE
+    $transaction = Transaction::with('details.product')->find($id);
+    if (!$transaction) return response()->json(['message' => 'Transaksi tidak ditemukan'], 404);
+
+    // Tandai sebagai BATAL dan APPROVED
+    $transaction->update([
+        'status' => 'batal',
+        'void_status' => 'approved'
+    ]);
+
+    // BARU DI SINI stok dikembalikan
+    foreach ($transaction->details as $detail) {
+        $detail->product->increment('stock', $detail->quantity);
+    }
+
+    return response()->json(['message' => 'Transaksi berhasil dibatalkan dan stok dikembalikan']);
+}
+
+public function rejectVoid($id) {
+    $transaction = Transaction::find($id);
+    if (!$transaction) return response()->json(['message' => 'Transaksi tidak ditemukan'], 404);
+
+    // Kembalikan ke SELESAI dan REJECTED
+    $transaction->update([
+        'status' => 'selesai',
+        'void_status' => 'rejected'
+    ]);
+    
+    return response()->json(['message' => 'Permintaan void ditolak, transaksi tetap berlaku']);
+}
 }

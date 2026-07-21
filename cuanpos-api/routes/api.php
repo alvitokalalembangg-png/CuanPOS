@@ -15,7 +15,7 @@ Route::post('/login/admin', [AuthController::class, 'loginAdmin']);
 // --- PROTECTED ROUTES (Butuh Token) ---
 Route::middleware('auth:sanctum')->group(function () {
     
-    // Rute Global (Kasir & Admin bisa akses)
+    // Rute Global (Kasir & Admin)
     Route::get('/user', function (Request $request) { return $request->user(); });
     Route::get('/products', function () { return response()->json(Product::with('category')->get()); });
     Route::get('/categories', function () { return response()->json(Category::all()); });
@@ -23,20 +23,30 @@ Route::middleware('auth:sanctum')->group(function () {
     // --- AREA KHUSUS KASIR ---
     Route::middleware('role:kasir')->prefix('kasir')->group(function () {
         Route::post('/transactions', [TransactionController::class, 'store']);
+        // Permintaan Void dari Kasir
+        Route::put('/transactions/{id}/request-void', [TransactionController::class, 'requestVoid']);
+        Route::get('/transactions', [TransactionController::class, 'history']);
     });
 
     // --- AREA KHUSUS ADMIN ---
     Route::middleware('role:admin')->prefix('admin')->group(function () {
-        // Endpoint untuk KelolaProdukActivity
+        // Kelola Produk (Full CRUD)
         Route::post('/products', [AdminController::class, 'storeProduct']);
+        Route::put('/products/{id}', [AdminController::class, 'updateProduct']);
+        Route::delete('/products/{id}', [AdminController::class, 'deleteProduct']);
         
-        // Endpoint untuk KelolaKategoriActivity
+        // Kelola Kategori (Full CRUD)
         Route::post('/categories', [AdminController::class, 'storeCategory']);
+        Route::put('/categories/{id}', [AdminController::class, 'updateCategory']);
+        Route::delete('/categories/{id}', [AdminController::class, 'deleteCategory']);
         
-        // Endpoint untuk LaporanPenjualanActivity
+        // Laporan & Transaksi
         Route::get('/laporan', [AdminController::class, 'laporanPenjualan']);
+        Route::get('/transactions', [AdminController::class, 'laporanPenjualan']);
         
-        // Endpoint untuk ApprovalVoidActivity
-        Route::put('/transactions/{id}/void', [AdminController::class, 'voidTransaction']);
+        // Approval / Reject Void Transaksi
+        Route::put('/transactions/{id}/approve-void', [AdminController::class, 'voidTransaction']);
+        Route::put('/transactions/{id}/reject-void', [AdminController::class, 'rejectVoid']);
+        Route::get('/transactions', [AdminController::class, 'getPendingVoid']);
     });
 });

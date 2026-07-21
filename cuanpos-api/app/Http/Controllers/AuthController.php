@@ -11,7 +11,7 @@ class AuthController extends Controller
     //
     public function loginMobile(Request $request) {
         $request->validate([
-            'pin' => 'required|string|size:6'
+            'pin' => 'required|string|size:4'
         ]);
 
         $user = User::where('pin', $request->pin)->first();

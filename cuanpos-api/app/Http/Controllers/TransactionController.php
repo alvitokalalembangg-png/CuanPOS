@@ -10,7 +10,6 @@ use Illuminate\Support\Facades\DB;
 
 class TransactionController extends Controller
 {
-    //
     public function store(Request $request) {
         $request->validate([
             'channel' => 'required|in:web,mobile',
@@ -24,10 +23,7 @@ class TransactionController extends Controller
                 $totalAmount = 0;
                 $details = [];
 
-                // Ambil semua ID produk dari request
                 $productIds = collect($request->items)->pluck('product_id');
-                
-                // Lock tabel produk terkait agar kasir lain harus antre jika mengakses produk yang sama
                 $products = Product::whereIn('id', $productIds)->lockForUpdate()->get()->keyBy('id');
 
                 foreach ($request->items as $item) {
@@ -43,15 +39,13 @@ class TransactionController extends Controller
                     $details[] = [
                         'product_id' => $product->id,
                         'quantity' => $item['quantity'],
-                        'price' => $product->price, // Snapshot harga
+                        'price' => $product->price,
                         'subtotal' => $subtotal,
                     ];
 
-                    // Kurangi stok
                     $product->decrement('stock', $item['quantity']);
                 }
 
-                // Buat header transaksi
                 $transaction = Transaction::create([
                     'kasir_id' => $request->user()->id,
                     'total_amount' => $totalAmount,
@@ -59,7 +53,6 @@ class TransactionController extends Controller
                     'channel' => $request->channel,
                 ]);
 
-                // Insert detail transaksi sekaligus
                 $transaction->details()->createMany($details);
 
                 return $transaction->load('details.product');
@@ -77,4 +70,27 @@ class TransactionController extends Controller
             ], 400);
         }
     }
+
+    // --- RIWAYAT TRANSAKSI KASIR ---
+public function history(Request $request) {
+    // Mengambil transaksi khusus milik kasir yang sedang login
+    $transactions = Transaction::with(['details.product'])
+        ->where('kasir_id', $request->user()->id)
+        ->orderBy('created_at', 'desc')
+        ->get();
+
+    return response()->json(['data' => $transactions]);
+}
+
+    // --- REQUEST VOID OLEH KASIR ---
+    public function requestVoid($id) {
+    $transaction = Transaction::find($id);
+    if (!$transaction) return response()->json(['message' => 'Not found'], 404);
+
+    $transaction->update([
+        'status' => 'pending_void',
+        'void_status' => 'pending'
+    ]);
+    return response()->json(['message' => 'Void requested']);
+}
 }
